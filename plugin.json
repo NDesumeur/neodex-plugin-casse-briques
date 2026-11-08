@@ -3,7 +3,7 @@
   "name": "Casse-briques",
   "version": "1.1.1",
   "author": "NDesumeur",
-  "description": "12 niveaux dessinés puis générés : briques à plusieurs vies, métal, explosives, bonus et capsules.",
+  "description": "Renvoie la balle avec ta raquette pour casser toutes les briques : 40 niveaux conçus un par un, puis des niveaux générés à l'infini, de plus en plus rapides. Briques à 1, 2 ou 3 coups, métal indestructible, explosives qui cassent leurs voisines, et huit capsules : raquette large, multi-balle, lasers, balle lente, colle, boule de feu, vie en plus… et un piège. Chaque niveau atteint devient un point de départ.",
   "icon": "icon.png",
   "entry": "index.js",
   "view": "casse-briques",
