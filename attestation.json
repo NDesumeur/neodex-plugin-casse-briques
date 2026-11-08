@@ -1,9 +1,9 @@
 {
   "pluginId": "neodex.cassebriques",
   "repo": "NDesumeur/neodex-plugin-casse-briques",
-  "version": "1.1.1",
-  "sha256": "e192e9c73f9627e50ec6d264d437b05fd5ac8af6ca2d912668ca55c99d2a043d",
-  "approvedAt": "2026-11-06T21:35:47.971Z",
+  "version": "1.1.2",
+  "sha256": "ea1c5641156c4a3719a0436247d068e3756bfe564ae30d7a3e6bc119a387368c",
+  "approvedAt": "2026-11-08T12:10:46.952Z",
   "neobase": ">=4.0.0",
-  "signature": "ImD2mI6pn4nbb+d0ac2iQPneNAjsCe5UZbBMWMFjkxGTiq5Adi1ZyK4A0SXUTL0dOLe21idI9gVeT2u2EBM1AQ=="
+  "signature": "GozmlotKtVWX+Nl3ROZSAMKnT9u3JXAwNGkammEDEJEucjBI4xX7nfHuTYFc0zuUA0Mz9l9054fHL92gLkj/DA=="
 }
