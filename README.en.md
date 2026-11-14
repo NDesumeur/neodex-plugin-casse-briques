@@ -9,12 +9,14 @@ Bounce the ball back with your paddle to break every brick in the level. 40 leve
 - **Mouse** or **← →** (or **A D** / **Q D**): move the paddle.
 - **Click** or **Space**: launch the ball, and fire when you have lasers.
 - **P** or **Escape**: pause.
+- **Gamepad**: d-pad or left stick for the paddle, **A** to launch the ball (held: the lasers fire), **Start** to pause; on the title screen, left and right pick the starting level.
+- **SOUND**: all (effects and music), effects only, or off. **FULLSCREEN**: the playfield fills the screen.
 - The ball leaves in the direction of where it rests on the paddle: hit it with the edge to send it at an angle.
 
 ## The bricks
 
-- **Coloured bricks**: 1, 2 or 3 hits depending on their colour (blue, purple, pink); they crack when hit.
-- **Metal** (grey): indestructible, except with the fireball. It does not need to be broken to finish the level.
+- **Coloured bricks**: 1, 2 or 3 hits depending on their colour (blue, purple, pink); solid bricks have a groove, and they crack with each hit. A broken brick flies apart in shards.
+- **Metal** (grey, rivets): indestructible, even the fireball bounces off it. It does not need to be broken to finish the level.
 - **Explosive** (orange): they break every brick around them, which can set off neighbouring explosives in a chain.
 - **Bonus** (gold): they always drop a capsule. Other bricks drop one now and then (about one time in nine).
 

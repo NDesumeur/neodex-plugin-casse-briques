@@ -1,12 +1,14 @@
 // Casse-briques : ton appli d'origine (HTML et code inchangés), livrée en plugin.
 // Ses données sont dans le dossier du plugin, que NeoDex sauvegarde (synchro cloud et sauvegardes) ; à la première ouverture elle reprend ce que tu avais dans NeoDex.
 // Elle tourne dans le bac à sable de NeoDex, avec ses outils d'interface (ctx.host) et seulement les autorisations de son plugin.json.
-const HTML = "<div class=\"appWrap\">\n      <div class=\"agHead\"><span class=\"label\">Casse-briques</span><span class=\"hint\" id=\"bkInfo\"></span><div class=\"agNav\"><select class=\"f gSel\" id=\"bkLevel\" title=\"Niveau de départ\"></select></div></div>\n      <div class=\"gameBox g43\"><canvas id=\"bkCanvas\" width=\"320\" height=\"240\"></canvas></div>\n      <div class=\"hint\">Souris ou flèches : raquette · clic ou espace : lancer la balle (et tirer avec les lasers) · P ou Échap : pause · écran titre, ← → : niveau de départ. Capsules : E large, M multi-balle, L lasers, S lente, C colle, F feu, V vie, R courte (piège).</div>\n    </div>";
+const HTML = "<div class=\"appWrap\">\n      <div class=\"agHead\"><span class=\"label\">Casse-briques</span><span class=\"hint\" id=\"bkInfo\"></span><div class=\"agNav\"><select class=\"f gSel\" id=\"bkLevel\" title=\"Niveau de départ\"></select></div></div>\n      <div class=\"gameBox g43\"><canvas id=\"bkCanvas\" width=\"320\" height=\"240\"></canvas></div>\n      <div class=\"row\" style=\"justify-content:center;margin-top:8px\"><button class=\"btn px\" id=\"bkSnd\">SON : TOUT</button><button class=\"btn px\" id=\"bkFs\">PLEIN ÉCRAN</button></div>\n      <div class=\"hint\">Souris ou flèches : raquette · clic ou espace : lancer la balle (et tirer avec les lasers) · P ou Échap : pause · écran titre, ← → : niveau de départ. Manette : croix ou stick pour la raquette, A pour lancer (maintenu : lasers), Start pour la pause. Capsules : E large, M multi-balle, L lasers, S lente, C colle, F feu, V vie, R courte (piège).</div>\n    </div>";
 /*CSS-MOVED*/ const CSS = `.gameBox{display:grid;place-items:center;padding:10px;background:#05010b;box-shadow:0 0 0 3px var(--line2)}
 .gameBox canvas{width:min(100%,1152px);aspect-ratio:384/144;image-rendering:pixelated;cursor:var(--cp,pointer)}
 .gameBox.tall canvas{width:auto;height:min(720px,72vh);aspect-ratio:240/320}
 .gSel{width:auto;font-size:14px;padding:6px 10px;margin-right:8px}
-.gameBox.g43 canvas{aspect-ratio:320/240;width:min(100%,calc((100vh - 240px) * 4 / 3))}
+.gameBox.g43 canvas{aspect-ratio:320/240;width:min(100%,max(320px,calc((100vh - 280px) * 4 / 3)))}
+.gameBox:fullscreen{padding:0;display:grid;place-items:center;background:#05010b}
+.gameBox.g43:fullscreen canvas{width:min(100vw,calc(100vh * 4 / 3))}
 `;  // le style de ce plugin (il utilise les variables du thème de NeoDex)
 export default async function (ctx) {
   const view = ctx.view;
@@ -103,6 +105,69 @@ const BK = {W: 320, H: 240, BW: 22, BH: 8, X0: 5, Y0: 26, PY: 224,
   HP: {1: ['#7fe0ee', '#1f8098'], 2: ['#b46aee', '#4a2296'], 3: ['#ff5ad9', '#8a1a7a']},
 };
 let bk = null;
+const bks = gstore('breakout', {snd: 0});  // le réglage du son : 0 tout, 1 effets seulement, 2 coupé
+// ---- les sons et la petite musique, faits sur place (Web Audio)
+let bkAc = null;
+const bkAudio = () => { try { bkAc ??= new AudioContext(); if (bkAc.state === 'suspended') bkAc.resume(); return bkAc; } catch { return null; } };
+function bkTone(f, d, {type = 'square', vol = .05, slide = 0, at = 0} = {}) {
+  if (!bk || bk.mode === 'check' || (bks.snd || 0) === 2) return; const ac = bkAudio(); if (!ac) return;
+  const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d + .02);
+}
+function bkNoise(d, vol) {
+  if (!bk || bk.mode === 'check' || (bks.snd || 0) === 2) return; const ac = bkAudio(); if (!ac) return;
+  const n = Math.ceil(ac.sampleRate * d), buf = ac.createBuffer(1, n, ac.sampleRate), data = buf.getChannelData(0); for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 2;
+  const src = ac.createBufferSource(), g = ac.createGain(), lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1200; g.gain.value = vol; src.buffer = buf; src.connect(lp).connect(g).connect(ac.destination); src.start();
+}
+const bkSemi = (f, s) => f * 2 ** (s / 12);
+const BK_SFX = {
+  paddle: rel => bkTone(bkSemi(330, Math.round(rel * 5)), .06, {vol: .05, slide: bkSemi(440, Math.round(rel * 5))}),
+  wall: () => bkTone(180, .03, {type: 'triangle', vol: .04}),
+  hit: hp => bkTone(bkSemi(520, hp * 3), .05, {vol: .035}),
+  brk: row => { bkTone(bkSemi(660, 9 - Math.min(9, row)), .08, {vol: .04, slide: bkSemi(880, 9 - Math.min(9, row))}); bkNoise(.05, .04); },
+  metal: () => { bkTone(1760, .09, {type: 'triangle', vol: .04}); bkTone(2349, .07, {type: 'triangle', vol: .02}); },
+  boom: () => { bkNoise(.45, .2); bkTone(110, .35, {type: 'sawtooth', vol: .06, slide: 35}); },
+  get: bad => (bad ? [0, -3, -6] : [0, 4, 7, 12]).forEach((s, i) => bkTone(bkSemi(bad ? 392 : 523, s), .09, {at: i * .05, vol: .045})),
+  zap: () => bkTone(1400, .08, {type: 'sawtooth', vol: .02, slide: 500}),
+  lose: () => [0, -2, -5, -9].forEach((s, i) => bkTone(bkSemi(392, s), .16, {type: 'triangle', at: i * .12, vol: .07})),
+  over: () => [0, -3, -7, -12].forEach((s, i) => bkTone(bkSemi(330, s), .3, {type: 'triangle', at: i * .2, vol: .07})),
+  win: () => [0, 4, 7, 12, 7, 12, 16].forEach((s, i) => bkTone(bkSemi(523, s), .13, {at: i * .09, vol: .045})),
+};
+// la musique : 32 croches entraînantes en do (do, la mineur, fa, sol) ; elle accélère un peu avec le niveau et ne joue que pendant la partie
+const BK_MEL = [12, null, 16, 19, 24, null, 19, 16, 12, null, 16, 21, 24, null, 21, null, 17, null, 21, 24, 29, null, 24, 21, 19, null, 23, 26, 24, null, null, null];
+const BK_BASS = [-12, -24, -15, -27, -19, -31, -17, -29];
+const bkMus = {step: 0, at: 0};
+function bkMusic() {  // appelée à chaque image : prépare les notes du quart de seconde qui vient
+  if (!bk || bk.mode !== 'play' || bk.clear || (bks.snd || 0) !== 0 || !bkAc) { bkMus.at = 0; return; }
+  const ac = bkAc, eighth = 30 / Math.min(160, 120 + bk.level * 2);
+  if (bkMus.at < ac.currentTime) bkMus.at = ac.currentTime + .05;
+  while (bkMus.at < ac.currentTime + .25) {
+    const i = bkMus.step++ % 32, m = BK_MEL[i], at = bkMus.at - ac.currentTime;
+    if (m != null) bkTone(bkSemi(262, m), eighth * 1.4, {vol: .012, at});
+    if (i % 2 === 0) bkTone(bkSemi(262, BK_BASS[(i >> 3) * 2 + (i % 4 ? 1 : 0)]), eighth * 1.6, {type: 'triangle', vol: .05, at});
+    bkMus.at += eighth;
+  }
+}
+// les couleurs d'une brique : lumière, face, ombre
+const BK_PAL = {1: ['#c8f6ff', '#7fe0ee', '#1f8098'], 2: ['#e4c8ff', '#b46aee', '#4a2296'], 3: ['#ffc0f0', '#ff5ad9', '#8a1a7a'], '#': ['#f4f0ff', '#c9bdf0', '#5e4d85'], x: ['#ffd0a0', '#ff9a3c', '#8a3c10'], '*': ['#fff0c8', '#ffd07a', '#b8641c']};
+const bkPal = k => BK_PAL[k.type === '#' || k.type === 'x' || k.type === '*' ? k.type : Math.min(3, Math.max(1, k.hp))];  // une brique cassée d'un coup (feu, explosion) garde sa couleur
+function bkBrick(g, k, t) {  // une brique en léger relief : contour sombre, lumière en haut à gauche, ombre en bas à droite, et sa marque
+  const [L, F, D] = bkPal(k), {x, y} = k, W = BK.BW, H = BK.BH, fl = k.flash > 0;
+  px(g, '#05010b', x, y, W, H); px(g, fl ? '#ffffff' : D, x + 1, y + 1, W - 2, H - 2); px(g, fl ? '#ffffff' : F, x + 1, y + 1, W - 3, H - 3);
+  px(g, fl ? '#ffffff' : L, x + 1, y + 1, W - 3, 1); px(g, fl ? '#ffffff' : L, x + 1, y + 1, 1, H - 3);
+  if (fl) return;
+  if (k.type === '#') { for (const [a, b] of [[3, 2], [W - 5, 2], [3, H - 4], [W - 5, H - 4]]) { px(g, D, x + a, y + b, 2, 2); px(g, L, x + a, y + b, 1, 1); } px(g, L, x + 9, y + 2, 1, 1); px(g, L, x + 10, y + 3, 1, 1); px(g, L, x + 11, y + 4, 1, 1); return; }
+  if (k.type === 'x') { px(g, '#3e0f4a', x + 7, y + 2, 8, 4); px(g, '#ff4f6d', x + 8, y + 3, 6, 2); px(g, '#3e0f4a', x + 14, y + 1, 2, 1); px(g, t % 16 < 8 ? '#fff6b0' : '#ffd07a', x + 16, y, 1, 1); return; }
+  if (k.type === '*') { const c = (t + x) % 60 < 8 ? '#ffffff' : L; px(g, c, x + 10, y + 1, 2, 5); px(g, c, x + 8, y + 3, 6, 1); px(g, c, x + 9, y + 2, 4, 3); return; }
+  if (k.max >= 2) px(g, D, x + 4, y + 4, W - 8, 1);  // une rainure : brique solide
+  if (k.max >= 3) { px(g, D, x + 3, y + 2, 1, 1); px(g, D, x + W - 5, y + 2, 1, 1); }
+  for (let c = 0; c < k.max - k.hp; c++) { const cx = x + 6 + c * 9; px(g, '#05010b', cx, y + 1, 1, 2); px(g, '#05010b', cx + 1, y + 3, 1, 2); px(g, '#05010b', cx, y + 5, 1, 2); px(g, D, cx + 2, y + 4, 1, 1); }  // les fissures
+}
+function bkShards(k, n = 8) {  // la brique qui casse part en éclats de ses trois couleurs, plus un peu de poussière
+  const P = bkPal(k);
+  for (let i = 0; i < n; i++) bk.parts.push({x: k.x + 2 + Math.random() * (BK.BW - 4), y: k.y + 1 + Math.random() * (BK.BH - 3), vx: (Math.random() - .5) * 2.6, vy: -Math.random() * 1.8 - .3, life: 28 + Math.random() * 20, color: P[i % 3], w: 2 + (i % 2), h: 2, edge: true});
+  for (let i = 0; i < 5; i++) bk.parts.push({x: k.x + Math.random() * BK.BW, y: k.y + BK.BH / 2, vx: (Math.random() - .5) * 1.2, vy: -Math.random() * .8, life: 14 + Math.random() * 10, color: '#d9c6ff', w: 1, h: 1});
+}
 function bkMap(n) {  // designed levels, then symmetric generated ones that get harder
   if (n <= BK.LEVELS.length) return BK.LEVELS[n - 1];
   const r = seeded(n * 7919), rows = 6 + Math.min(4, Math.floor((n - BK.LEVELS.length) / 3)), out = [];
@@ -137,12 +202,12 @@ const bkPW = () => bk.fx.wide ? 66 : bk.fx.narrow ? 28 : 44;
 const bkSpeed = () => (Math.min(3.9, 2.3 + (bk.level - 1) * .12) + Math.min(.6, bk.lt * .00025)) * (bk.fx.slow ? .7 : 1);
 function bkBurst(x, y, color, n = 10) { for (let i = 0; i < n; i++) bk.parts.push({x, y, vx: (Math.random() - .5) * 3, vy: (Math.random() - .8) * 2.5, life: 20 + Math.random() * 20, color}); }
 function bkHit(k, power) {
-  if (k.type === '#') { k.flash = 6; return; }
+  if (k.type === '#') { k.flash = 6; BK_SFX.metal(); return; }
   k.hp -= power ? 99 : 1; k.flash = 6; bk.score += 10; bk.lastHit = bk.lt;
-  if (k.hp > 0) return;
+  if (k.hp > 0) { BK_SFX.hit(k.hp); for (let i = 0; i < 3; i++) bk.parts.push({x: k.x + 4 + Math.random() * (BK.BW - 8), y: k.y + BK.BH, vx: (Math.random() - .5), vy: Math.random() * .5, life: 16, color: bkPal(k)[2], w: 1, h: 1}); return; }
   bk.bricks.splice(bk.bricks.indexOf(k), 1);
   bk.score += 40 + bk.level * 5;
-  bkBurst(k.x + BK.BW / 2, k.y + BK.BH / 2, k.type === 'x' ? '#ff9a3c' : (BK.HP[k.max] || BK.HP[1])[0], k.type === 'x' ? 22 : 10);
+  bkShards(k); if (k.type === 'x') { bkBurst(k.x + BK.BW / 2, k.y + BK.BH / 2, '#ff9a3c', 22); BK_SFX.boom(); } else BK_SFX.brk((k.y - BK.Y0) / (BK.BH + 2));
   if (k.type === '*' || Math.random() < .11) {
     let r = Math.random() * BK.DROPS.reduce((a, d) => a + d[1], 0); const d = BK.DROPS.find(d => (r -= d[1]) < 0);
     bk.drops.push({x: k.x + BK.BW / 2, y: k.y + BK.BH / 2, type: d[0]});
@@ -160,7 +225,7 @@ function bkCatch(t) {
 }
 function bkLaunch() {
   for (const b of bk.balls) if (b.stuck != null) { const a = (b.stuck / (bkPW() / 2)) * .7 || -.25, sp = bkSpeed(); b.vx = sp * Math.sin(a); b.vy = -sp * Math.cos(a); b.stuck = null; }
-  if (bk.fx.laser && bk.cool <= 0) { const w = bkPW(); bk.bolts.push({x: bk.px - w / 2 + 3, y: BK.PY - 2}, {x: bk.px + w / 2 - 3, y: BK.PY - 2}); bk.cool = 18; }
+  if (bk.fx.laser && bk.cool <= 0) { const w = bkPW(); bk.bolts.push({x: bk.px - w / 2 + 3, y: BK.PY - 2}, {x: bk.px + w / 2 - 3, y: BK.PY - 2}); bk.cool = 18; BK_SFX.zap(); }
 }
 function bkPress() {  // true when the press started, resumed or restarted the game
   if (!bk) return true;
@@ -172,10 +237,10 @@ function bkUpdate() {
   bk.lt++;
   for (const k in bk.fx) if (bk.fx[k] > 0) bk.fx[k]--;
   if (bk.cool > 0) bk.cool--;
-  const w = bkPW(), dir = (bk.keys.ArrowRight || bk.keys.d ? 1 : 0) - (bk.keys.ArrowLeft || bk.keys.q || bk.keys.a ? 1 : 0);
+  const w = bkPW(), dir = (bk.keys.ArrowRight || bk.keys.d || bk.keys.padR ? 1 : 0) - (bk.keys.ArrowLeft || bk.keys.q || bk.keys.a || bk.keys.padL ? 1 : 0);
   if (dir) { bk.px += dir * 4.5; bk.target = null; } else if (bk.target != null) bk.px += Math.max(-7, Math.min(7, bk.target - bk.px));
   bk.px = Math.max(w / 2 + 2, Math.min(BK.W - w / 2 - 2, bk.px));
-  if (bk.fx.laser && bk.keys[' '] && bk.cool <= 0) bkLaunch();
+  if (bk.fx.laser && (bk.keys[' '] || bk.keys.padA) && bk.cool <= 0) bkLaunch();
   if (bk.banner) { bk.banner.t--; if (bk.banner.t <= 0) bk.banner = null; }
   if (bk.tip && --bk.tip.t <= 0) bk.tip = null;
   if (bk.clear) { if (--bk.clear <= 0) { bk.clear = 0; bk.level++; best('breakoutLvl', bk.level); saveGames(); bkLoad(); bkLevels(); } return; }
@@ -187,14 +252,14 @@ function bkUpdate() {
     const n = Math.ceil(sp / 1.2);
     for (let i = 0; i < n && !b.dead; i++) {
       const ox = b.x, oy = b.y; b.x += b.vx / n; b.y += b.vy / n;
-      if (b.x < 3) { b.x = 3; b.vx = Math.abs(b.vx); } if (b.x > BK.W - 3) { b.x = BK.W - 3; b.vx = -Math.abs(b.vx); }
-      if (b.y < 16) { b.y = 16; b.vy = Math.abs(b.vy); }
+      if (b.x < 3) { b.x = 3; b.vx = Math.abs(b.vx); BK_SFX.wall(); } if (b.x > BK.W - 3) { b.x = BK.W - 3; b.vx = -Math.abs(b.vx); BK_SFX.wall(); }
+      if (b.y < 16) { b.y = 16; b.vy = Math.abs(b.vy); BK_SFX.wall(); }
       if (b.vy > 0 && b.y + 2 >= BK.PY && oy + 2 <= BK.PY + 2 && b.x >= bk.px - w / 2 - 2 && b.x <= bk.px + w / 2 + 2) {  // the paddle: where it hits sets the angle
         const rel = Math.max(-1, Math.min(1, (b.x - bk.px) / (w / 2))), stuck = bk.lt - (bk.lastHit || 0) > 1200 && bk.bricks.find(k => k.type !== '#');
         const a = stuck ? Math.max(-1.05, Math.min(1.05, Math.atan2(stuck.x + BK.BW / 2 - b.x, BK.PY - stuck.y))) : rel * 1.05;  // 20 s without hitting a brick: this bounce heads for one
         b.vx = sp * Math.sin(a); b.vy = -sp * Math.cos(a); b.y = BK.PY - 2;
         if (bk.fx.glue) b.stuck = b.x - bk.px;
-        sfx('click'); break;
+        BK_SFX.paddle(rel); break;
       }
       const k = bk.bricks.find(k => b.x + 2 > k.x && b.x - 2 < k.x + BK.BW && b.y + 2 > k.y && b.y - 2 < k.y + BK.BH);
       if (k) {
@@ -205,7 +270,7 @@ function bkUpdate() {
     }
   }
   bk.balls = bk.balls.filter(b => !b.dead);
-  for (const d of bk.drops) { d.y += .9; if (d.y >= BK.PY - 3 && d.y <= BK.PY + 6 && Math.abs(d.x - bk.px) < w / 2 + 6) { d.got = true; bkCatch(d.type); sfx('notify'); } }
+  for (const d of bk.drops) { d.y += .9; if (d.y >= BK.PY - 3 && d.y <= BK.PY + 6 && Math.abs(d.x - bk.px) < w / 2 + 6) { d.got = true; bkCatch(d.type); BK_SFX.get(d.type === 'R'); } }
   bk.drops = bk.drops.filter(d => !d.got && d.y < BK.H + 8);
   for (const s of bk.bolts) { s.y -= 4; const k = bk.bricks.find(k => s.x > k.x && s.x < k.x + BK.BW && s.y > k.y && s.y < k.y + BK.BH); if (k) { s.dead = true; bkHit(k, false); } }
   bk.bolts = bk.bolts.filter(s => !s.dead && s.y > 14);
@@ -213,29 +278,23 @@ function bkUpdate() {
   bk.parts = bk.parts.filter(p => p.life > 0);
   if (bk.shake > 0) bk.shake--;
   if (!bk.balls.length) {
-    bk.lives--; bk.shake = 10; sfx('error');
-    if (bk.lives <= 0) { bk.mode = 'over'; bk.overAt = Date.now(); const rec = best('breakout', bk.score); bk.record = rec; saveGames(); return; }
+    bk.lives--; bk.shake = 10;
+    if (bk.lives <= 0) { bk.mode = 'over'; bk.overAt = Date.now(); const rec = best('breakout', bk.score); bk.record = rec; saveGames(); (rec ? BK_SFX.win : BK_SFX.over)(); return; }
+    BK_SFX.lose();
     bk.fx = {wide: 0, narrow: 0, laser: 0, slow: 0, glue: 0, fire: 0}; bk.drops = []; bk.lt = 0; bk.lastHit = 0;
     bk.balls = [{x: bk.px, y: BK.PY - 3, vx: 0, vy: 0, stuck: 0}];
   }
-  if (!bk.bricks.some(k => k.type !== '#')) { bk.score += 500 + bk.lives * 100; bk.clear = 110; bk.banner = {text: 'NIVEAU ' + bk.level + ' RÉUSSI', sub: '+' + (500 + bk.lives * 100) + ' points', t: 110}; sfx('launch'); }
+  if (!bk.bricks.some(k => k.type !== '#')) { bk.score += 500 + bk.lives * 100; bk.clear = 110; bk.banner = {text: 'NIVEAU ' + bk.level + ' RÉUSSI', sub: '+' + (500 + bk.lives * 100) + ' points', t: 110}; BK_SFX.win(); }
 }
 function bkDraw() {
   const g = bk.g, {W, H} = BK;
+  bkMusic();
   g.save(); if (bk.shake) g.translate(Math.round((Math.random() - .5) * bk.shake / 2), Math.round((Math.random() - .5) * bk.shake / 2));
   g.fillStyle = '#07021a'; g.fillRect(-4, -4, W + 8, H + 8);
   for (const [x, y, z] of bk.stars) px(g, z > .7 ? '#8f7bb8' : '#3a2a6e', x, (y + bk.tick * z * .15) % H);
   g.fillStyle = 'rgba(138,92,240,.05)'; for (let x = 0; x < W; x += 16) g.fillRect(x, 14, 1, H); for (let y = 14; y < H; y += 16) g.fillRect(0, y, W, 1);
   px(g, '#2a1d52', 0, 13, W, 1);
-  for (const k of bk.bricks) {
-    const [hi, lo] = k.type === '#' ? ['#c9bdf0', '#5e4d85'] : k.type === 'x' ? ['#ff9a3c', '#8a3c10'] : k.type === '*' ? ['#ffd07a', '#b8641c'] : BK.HP[Math.min(3, k.hp)];
-    const c = k.flash-- > 0 ? '#ffffff' : hi;
-    px(g, lo, k.x, k.y, BK.BW, BK.BH); px(g, c, k.x, k.y, BK.BW, BK.BH - 2); px(g, 'rgba(255,255,255,.45)', k.x + 1, k.y + 1, BK.BW - 2, 1);
-    if (k.type === '#') { px(g, lo, k.x + 2, k.y + 2, 2, 2); px(g, lo, k.x + BK.BW - 4, k.y + 2, 2, 2); }
-    if (k.type === 'x') { px(g, '#3e0f4a', k.x + 9, k.y + 2, 4, 3); px(g, '#ffd07a', k.x + 12, k.y + 1, 1, 1); }
-    if (k.type === '*') { px(g, '#fff0c8', k.x + 10, k.y + 1, 2, 4); px(g, '#fff0c8', k.x + 8, k.y + 2, 6, 2); }
-    if (k.max > 1 && k.type !== '#' && k.hp < k.max) px(g, 'rgba(5,1,11,.5)', k.x + 5, k.y + 3, 6, 1);  // a crack
-  }
+  for (const k of bk.bricks) { bkBrick(g, k, bk.tick); if (k.flash > 0) k.flash--; }
   for (const d of bk.drops) { const def = BK.DROPS.find(x => x[0] === d.type); px(g, '#05010b', d.x - 10, d.y - 5, 20, 11); px(g, def[2], d.x - 9, d.y - 4, 18, 9); px(g, 'rgba(255,255,255,.55)', d.x - 8, d.y - 4, 16, 1); px(g, 'rgba(5,1,11,.35)', d.x - 9, d.y + 3, 18, 2); g.font = '8px "Press Start 2P", monospace'; g.textAlign = 'center'; g.fillStyle = '#130a20'; g.fillText(d.type, d.x + .5, d.y + 4); g.textAlign = 'left'; }
   for (const s of bk.bolts) { px(g, '#ff4f6d', s.x - 1, s.y - 4, 2, 6); px(g, '#ffd0f4', s.x - 1, s.y - 4, 2, 2); }
   const w = bkPW(), x0 = Math.round(bk.px - w / 2);
@@ -247,18 +306,18 @@ function bkDraw() {
     if (fire) for (let i = 1; i < 5; i++) px(g, i < 3 ? '#ff9a3c' : '#8a3c10', b.x - b.vx * i * .8 - 1, b.y - b.vy * i * .8 - 1, 3, 3);
     px(g, fire ? '#ffd07a' : '#ffffff', b.x - 2, b.y - 2, 4, 4); px(g, fire ? '#ff4f6d' : '#c9bdf0', b.x, b.y, 2, 2);
   }
-  for (const p of bk.parts) px(g, p.color, p.x, p.y, 2, 2);
+  for (const p of bk.parts) { if (p.edge) px(g, '#05010b', p.x, p.y + 1, p.w, p.h); px(g, p.color, p.x, p.y, p.w || 2, p.h || 2); }
   px(g, 'rgba(11,3,28,.9)', 0, 0, W, 13);
   pxFont(g, String(bk.score).padStart(6, '0'), 4, 10, '#ffffff', 8);
   pxFont(g, 'NIV ' + bk.level, W / 2, 10, '#d9c6ff', 8, 'center');
   for (let i = 0; i < bk.lives; i++) { px(g, '#ff4f6d', W - 10 - i * 9, 4, 6, 4); px(g, '#ff4f6d', W - 9 - i * 9, 8, 4, 1); }
   const timers = [['wide', '#7fe0ee', 1200], ['narrow', '#8f7bb8', 720], ['laser', '#ff4f6d', 600], ['slow', '#8ee8a0', 720], ['glue', '#ffd07a', 900], ['fire', '#ff9a3c', 480]].filter(([k]) => bk.fx[k]);
   timers.forEach(([k, c, max], i) => { px(g, '#2a1d52', 4 + i * 26, H - 5, 22, 3); px(g, c, 4 + i * 26, H - 5, Math.ceil(22 * bk.fx[k] / max), 3); });
-  if (bk.banner) gameText(g, W, [[bk.banner.text, '#ff5ad9', 10], [bk.banner.sub, '#d9c6ff']], H / 2);
+  if (bk.banner && bk.mode === 'play') gameText(g, W, [[bk.banner.text, '#ff5ad9', 10], [bk.banner.sub, '#d9c6ff']], H / 2);
   else if (bk.tip) pxFont(g, bk.tip.text, W / 2, H - 30, '#ffd07a', 6, 'center');
-  if (bk.balls.some(b => b.stuck != null) && bk.mode === 'play' && !bk.banner) pxFont(g, 'Clic ou espace : lancer', W / 2, H - 30, '#8f7bb8', 6, 'center');
+  if (bk.balls.some(b => b.stuck != null) && bk.mode === 'play' && !bk.banner && !bk.tip) pxFont(g, 'Clic ou espace : lancer', W / 2, H - 30, '#8f7bb8', 6, 'center');
   const maxLvl = Math.max(1, games?.best.breakoutLvl || 1);
-  if (bk.mode === 'ready') gameText(g, W, [['CASSE-BRIQUES', '#ff5ad9', 12], ['Clic ou espace : jouer', '#d9c6ff'], maxLvl > 1 ? ['< Départ : niveau ' + bk.level + ' >', '#7fe0ee'] : ['Souris ou flèches : raquette', '#8f7bb8'], ['Record : ' + (games?.best.breakout ?? 0), '#ffd07a']], H / 2 - 20);
+  if (bk.mode === 'ready') { gameText(g, W, [['CASSE-BRIQUES', '#ff5ad9', 12], ['', ''], ['Niveau ' + bk.level + ' : ' + (BK.NAMES[bk.level - 1] || 'Secteur ' + bk.level), '#ffffff'], ['Clic ou espace : jouer', '#d9c6ff'], maxLvl > 1 ? ['< Départ : niveau ' + bk.level + ' >', '#7fe0ee'] : ['Souris ou flèches : raquette', '#8f7bb8'], ['Record : ' + (games?.best.breakout ?? 0), '#ffd07a']], H / 2 - 16); }
   if (bk.mode === 'pause') gameText(g, W, [['PAUSE', '#ffffff', 12], ['Clic ou espace : reprendre', '#d9c6ff']], H / 2);
   if (bk.mode === 'over') gameText(g, W, [['PARTIE TERMINÉE', '#ff4f6d', 10], ['Score : ' + bk.score + ' · niveau ' + bk.level, '#ffffff'], [bk.record ? 'NOUVEAU RECORD !' : 'Record : ' + (games?.best.breakout ?? 0), '#ffd07a'], ['Clic ou espace : rejouer', '#d9c6ff']], H / 2 - 14);
   g.restore();
@@ -272,7 +331,7 @@ document.addEventListener('keydown', e => {
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (view.classList.contains('on') && bk) {
     if ([' ', 'ArrowLeft', 'ArrowRight'].includes(k)) e.preventDefault();
-    if (bk.mode === 'ready' && (k === 'ArrowLeft' || k === 'ArrowRight')) { const max = Math.max(1, games.best.breakoutLvl || 1); bk.level = Math.max(1, Math.min(max, bk.level + (k === 'ArrowRight' ? 1 : -1))); bkLoad(); bkLevels(); return; }
+    if (bk.mode === 'ready' && (k === 'ArrowLeft' || k === 'ArrowRight')) { bkPick(k === 'ArrowRight' ? 1 : -1); return; }
     if (k === ' ' && !e.repeat && bkPress()) return;
     if ((k === 'p' || k === 'Escape') && bk.mode === 'play') bk.mode = 'pause';
     bk.keys[k] = true;
@@ -284,6 +343,37 @@ document.addEventListener('keyup', e => {
   if (bk) bk.keys[k] = false;
 });
 
+function bkPick(d) { const max = Math.max(1, games.best.breakoutLvl || 1); bk.level = Math.max(1, Math.min(max, bk.level + d)); bkLoad(); bkLevels(); }
+// la manette : croix ou stick pour la raquette, A pour lancer (maintenu : les lasers tirent), Start pour la pause ; sur l'écran titre, gauche et droite choisissent le niveau
+{ let prev = [];
+  const loop = () => { requestAnimationFrame(loop); if (!view.classList.contains('on') || !bk) return;
+    const p = [...(navigator.getGamepads?.() || [])].find(Boolean); if (!p) return;
+    const b = i => !!p.buttons[i]?.pressed, ax = p.axes[0] || 0;
+    const now = [b(14) || ax < -.4, b(15) || ax > .4, b(0) || b(2), b(9)], hit = i => now[i] && !prev[i];
+    if (bk.mode === 'ready' && (hit(0) || hit(1))) bkPick(hit(1) ? 1 : -1);
+    bk.keys.padL = bk.mode === 'play' && now[0]; bk.keys.padR = bk.mode === 'play' && now[1]; bk.keys.padA = now[2];
+    if (hit(2)) bkPress();
+    if (hit(3)) { if (bk.mode === 'play') bk.mode = 'pause'; else bkPress(); }
+    prev = now; };
+  requestAnimationFrame(loop); }
+$('bkFs').onclick = () => { $('bkFs').blur(); if (document.fullscreenElement) document.exitFullscreen(); else $('bkCanvas').parentElement.requestFullscreen?.().catch(() => {}); };
+const BK_SND = ['SON : TOUT', 'SON : EFFETS', 'SON : COUPÉ'];
+$('bkSnd').onclick = () => { bks.snd = ((bks.snd || 0) + 1) % 3; saveGames(); $('bkSnd').textContent = BK_SND[bks.snd]; $('bkSnd').blur(); };
+$('bkSnd').textContent = BK_SND[bks.snd || 0];
+function bkCheck() {  // vérification : une brique simple casse en éclats, une brique à 3 coups se fissure, le métal tient, l'explosive emporte ses voisines
+  const keep = bk, bad = [];
+  bk = {mode: 'check', bricks: [], parts: [], drops: [], score: 0, level: 1, shake: 0, lt: 0};
+  const mk = (x, y, type) => { const k = {x: BK.X0 + x * (BK.BW + 2), y: BK.Y0 + y * (BK.BH + 2), type, hp: type === '#' ? Infinity : type === 'x' || type === '*' ? 1 : +type, max: +type || 1, flash: 0}; bk.bricks.push(k); return k; };
+  const one = mk(0, 0, '1'), three = mk(5, 0, '3'), metal = mk(8, 0, '#'), boom = mk(2, 3, 'x'), nb = mk(3, 3, '2'), far = mk(10, 5, '1');
+  bkHit(one); if (bk.bricks.includes(one) || !bk.parts.some(p => p.edge)) bad.push('brique simple');
+  bkHit(three); if (three.hp !== 2 || !bk.bricks.includes(three)) bad.push('brique à 3 coups');
+  for (let i = 0; i < 5; i++) bkHit(metal); if (!bk.bricks.includes(metal)) bad.push('métal');
+  bkHit(boom); if (bk.bricks.includes(boom) || bk.bricks.includes(nb) || !bk.bricks.includes(far)) bad.push('explosion');
+  bk = keep;
+  return bad.length ? bad.join(', ') : 'ok';
+}
+console.assert(bkCheck() === 'ok', 'casse-briques', bkCheck());
+$('bkCanvas').__bk = {st: () => bk, BK, check: bkCheck, hit: k => bkHit(k)};  // pour l'auto-test
 $('bkLevel').onchange = () => bkStart(+$('bkLevel').value);  // (non indenté : les textes sur plusieurs lignes restent exactement les tiens)
   // ---- fin ----
   ctx.onOpen(() => { bk ? gameLoop(bk, 'neodex:breakout', bkUpdate, bkDraw) : bkStart(); });

@@ -9,12 +9,14 @@ Renvoie la balle avec ta raquette pour casser toutes les briques du niveau. 40 n
 - **Souris** ou **← →** (ou **Q D**) : déplacer la raquette.
 - **Clic** ou **Espace** : lancer la balle, et tirer quand tu as les lasers.
 - **P** ou **Échap** : pause.
+- **Manette** : croix ou stick gauche pour la raquette, **A** pour lancer la balle (maintenu : les lasers tirent), **Start** pour la pause ; sur l'écran titre, gauche et droite choisissent le niveau de départ.
+- **SON** : tout (effets et musique), effets seulement, ou coupé. **PLEIN ÉCRAN** : le terrain prend tout l'écran.
 - La balle part dans la direction de l'endroit de la raquette où elle repose : tape-la avec le bord pour l'envoyer en biais.
 
 ## Les briques
 
-- **Briques de couleur** : 1, 2 ou 3 coups selon leur couleur (bleu, violet, rose) ; elles se fissurent quand elles sont touchées.
-- **Métal** (gris) : indestructible, sauf avec la boule de feu. Il n'a pas besoin d'être cassé pour finir le niveau.
+- **Briques de couleur** : 1, 2 ou 3 coups selon leur couleur (bleu, violet, rose) ; les briques solides ont une rainure, et elles se fissurent à chaque coup. Une brique cassée part en éclats.
+- **Métal** (gris, rivets) : indestructible, même la boule de feu rebondit dessus. Il n'a pas besoin d'être cassé pour finir le niveau.
 - **Explosives** (orange) : elles cassent toutes les briques autour d'elles, ce qui peut faire exploser les explosives voisines en chaîne.
 - **Bonus** (dorées) : elles lâchent toujours une capsule. Les autres briques en lâchent une de temps en temps (environ une fois sur neuf).
 
