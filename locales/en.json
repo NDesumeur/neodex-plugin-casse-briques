@@ -71,5 +71,8 @@
   "SON : TOUT": "SOUND: ALL",
   "SON : EFFETS": "SOUND: EFFECTS",
   "SON : COUPÉ": "SOUND: OFF",
-  "PLEIN ÉCRAN": "FULLSCREEN"
+  "PLEIN ÉCRAN": "FULLSCREEN",
+  "Niveau": "Level",
+  "brique à 3 coups": "3-hit brick",
+  "métal": "metal"
 }
