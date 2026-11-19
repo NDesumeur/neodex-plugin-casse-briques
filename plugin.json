@@ -1,7 +1,7 @@
 {
   "id": "neodex.cassebriques",
   "name": "Casse-briques",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "author": "NDesumeur",
   "description": "Renvoie la balle avec ta raquette pour casser toutes les briques : 40 niveaux conçus un par un, puis des niveaux générés à l'infini, de plus en plus rapides. Briques à 1, 2 ou 3 coups, métal indestructible, explosives qui cassent leurs voisines, et huit capsules : raquette large, multi-balle, lasers, balle lente, colle, boule de feu, vie en plus… et un piège. Chaque niveau atteint devient un point de départ. Jouable à la manette et en plein écran, avec ses sons et une petite musique ; briques en léger relief qui partent en éclats.",
   "icon": "icon.png",
@@ -14,8 +14,8 @@
     "windows",
     "linux"
   ],
-  "syncMode": "progression",
-  "syncInfo": "Record, niveaux débloqués.",
+  "syncMode": "aucune",
+  "syncInfo": "Rien n'est synchronisé : tes records restent sur cet appareil.",
   "mobile": false,
   "system": false,
   "dependencies": {},
