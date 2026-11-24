@@ -27,6 +27,10 @@ module.exports = async ({ pj, sleep }) => {
     bk.banner = null; bk.tip = null; return 0;`);
   await K(`const k = {x: 149, y: 130, type: '3', hp: 1, max: 3, flash: 0}; bk.bricks.push(k); bk.mode = 'play'; T.hit(k); return 0;`);  // une brique qui casse : ses éclats
   await sleep(100); await shot('1-briques');
+  // le niveau 7 (rangées qui glissent, briques vertes) puis le boss du niveau 10, pour l'image
+  await K('bk.level = 7; T.load(); bk.banner = null; return 0;'); await sleep(600); await shot('2-glissent');
+  await K('bk.level = 10; T.boss(); bk.banner = null; bk.balls = [{x: 120, y: 120, vx: 1.5, vy: 2, spin: .01}]; return 0;'); await sleep(2500); await shot('3-boss');
+  const bh = await K('return bk.boss && !bk.boss.dead && bk.boss.d.name;'); if (bh !== 'Le Gardien') throw new Error('pas de boss au niveau 10 : ' + bh);
   const errs = await pj(`window.__e.join(' | ')`); if (errs) throw new Error('erreur : ' + errs);
   // le bouton son fait le tour : effets, coupé, tout
   const snd = []; for (let i = 0; i < 3; i++) { await pj(`document.getElementById('bkSnd').click(), 0`); snd.push(await pj(`document.getElementById('bkSnd').textContent`)); }
@@ -39,5 +43,5 @@ module.exports = async ({ pj, sleep }) => {
   const L = await pj(`(() => { const r = document.getElementById('bkCanvas').getBoundingClientRect(); let s = 0; for (let e = document.getElementById('bkCanvas').parentElement; e; e = e.parentElement) s += e.scrollTop; return { bottom: Math.round(r.bottom + s), h: Math.round(r.height), wh: innerHeight, ww: innerWidth, sw: document.documentElement.scrollWidth }; })()`);
   if (process.env.NEO_FIT_LOG) console.log('FIT', JSON.stringify(L));
   if (L.bottom > L.wh + 1 || L.sw > L.ww + 1 || L.h < 240) throw new Error('la zone de jeu dépasse la fenêtre ou reste petite : ' + JSON.stringify(L));
-  return 'règles ok · partie lancée à la manette · ' + (n0 - n1) + ' briques cassées · son · plein écran · terrain ' + L.h + ' px dans ' + L.ww + '×' + L.wh;
+  return 'règles ok · partie lancée à la manette · ' + (n0 - n1) + ' briques cassées · boss · son · plein écran · terrain ' + L.h + ' px dans ' + L.ww + '×' + L.wh;
 };

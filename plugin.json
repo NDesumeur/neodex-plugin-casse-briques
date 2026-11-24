@@ -1,9 +1,9 @@
 {
   "id": "neodex.cassebriques",
   "name": "Casse-briques",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "author": "NDesumeur",
-  "description": "Renvoie la balle avec ta raquette pour casser toutes les briques : 40 niveaux conçus un par un, puis des niveaux générés à l'infini, de plus en plus rapides. Briques à 1, 2 ou 3 coups, métal indestructible, explosives qui cassent leurs voisines, et huit capsules : raquette large, multi-balle, lasers, balle lente, colle, boule de feu, vie en plus… et un piège. Chaque niveau atteint devient un point de départ. Jouable à la manette et en plein écran, avec ses sons et une petite musique ; briques en léger relief qui partent en éclats.",
+  "description": "Renvoie la balle avec ta raquette pour casser toutes les briques : 40 niveaux conçus un par un, puis des niveaux générés à l'infini, de plus en plus rapides. Briques à 1, 2 ou 3 coups, métal indestructible, explosives qui cassent leurs voisines, et huit capsules : raquette large, multi-balle, lasers, balle lente, colle, boule de feu, vie en plus… et un piège. Chaque niveau atteint devient un point de départ. Jouable à la manette et en plein écran, avec ses sons et une petite musique ; briques en léger relief qui partent en éclats. Un boss tous les 10 niveaux, l'effet donné par la raquette, des briques qui glissent et d'autres qui repoussent.",
   "icon": "icon.png",
   "entry": "index.js",
   "view": "casse-briques",

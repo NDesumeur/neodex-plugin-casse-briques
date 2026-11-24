@@ -4,6 +4,14 @@ Bounce the ball back with your paddle to break every brick in the level. 40 leve
 
 *Version française : [README.md](README.md)*
 
+
+## Spin, living bricks and bosses (new in 1.3.0)
+
+- **Spin**: move the paddle as the ball touches it. The ball leaves at a sharper angle and its path curves for a moment (a blue trail shows it).
+- **Blue bricks with arrows**: the whole row slides and turns back at the wall or against another brick.
+- **Green bricks**: once broken, they grow back after seven seconds if the level is not finished.
+- **A boss every 10 levels**: the Warden, the Jellyfish, then the Blacksmith (and they come back tougher). It moves, shoots at the paddle (when hit, the paddle freezes for a moment) and hides behind a row of bricks. The ball and the lasers hurt it; a health bar shows at the top.
+
 ## Controls
 
 - **Mouse** or **← →** (or **A D** / **Q D**): move the paddle.

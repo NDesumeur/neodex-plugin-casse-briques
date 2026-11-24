@@ -4,6 +4,14 @@ Renvoie la balle avec ta raquette pour casser toutes les briques du niveau. 40 n
 
 *English version: [README.en.md](README.en.md)*
 
+
+## Effet, briques vivantes et boss (nouveau en 1.3.0)
+
+- **L'effet** : bouge la raquette au moment où la balle la touche. La balle part plus en biais et sa course se courbe un moment (une traînée bleue le montre).
+- **Briques bleues fléchées** : toute la rangée glisse et fait demi-tour au mur ou contre une autre brique.
+- **Briques vertes** : cassées, elles repoussent au bout de sept secondes si le niveau n'est pas fini.
+- **Un boss tous les 10 niveaux** : le Gardien, la Méduse puis le Forgeron (et ils reviennent plus solides). Il bouge, tire sur la raquette (touchée, elle reste bloquée un instant) et se cache derrière une rangée de briques. La balle et les lasers le blessent ; une barre de vie s'affiche en haut.
+
 ## Commandes
 
 - **Souris** ou **← →** (ou **Q D**) : déplacer la raquette.
