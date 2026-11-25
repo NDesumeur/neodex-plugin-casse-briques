@@ -31,6 +31,9 @@ export default async function (ctx) {
   const saveGames = () => { clearTimeout(gamesTimer); gamesTimer = setTimeout(() => { gamesTimer = null; folder.write('games', games).catch(() => {}); }, 500); };
   const best = (k, v, higher = true) => { const b = games.best[k]; if (b == null || (higher ? v > b : v < b)) { games.best[k] = v; saveGames(); return true; } return false; };
   const gstore = (k, init) => (games[k] ??= init);  // la section d'un jeu
+  // les trophées de NeoDex (3.4.8 et plus) : succès et records déclarés dans plugin.json ; sur un NeoDex plus ancien, rien ne se passe
+  const trophy = id => { ctx.games?.unlock(id).catch(() => {}); };
+  const trophyRecord = (id, v) => { if (v != null && Number.isFinite(+v)) ctx.games?.record(id, +v).catch(() => {}); };
 function gameLoop(st, appKey, update, draw) {
   cancelAnimationFrame(st.raf);
   const STEP = 1000 / 60; let acc = 0, last = performance.now();
@@ -298,7 +301,7 @@ function bkUpdate() {
   if (bk.fx.laser && (bk.keys[' '] || bk.keys.padA) && bk.cool <= 0) bkLaunch();
   if (bk.banner) { bk.banner.t--; if (bk.banner.t <= 0) bk.banner = null; }
   if (bk.tip && --bk.tip.t <= 0) bk.tip = null;
-  if (bk.clear) { if (--bk.clear <= 0) { bk.clear = 0; if (bk.level % 10 === 0 && !bk.bossWon) bkBoss(); else { bk.bossWon = false; bk.level++; best('breakoutLvl', bk.level); saveGames(); bkLoad(); bkLevels(); } } return; }
+  if (bk.clear) { if (--bk.clear <= 0) { bk.clear = 0; if (bk.level % 10 === 0 && !bk.bossWon) bkBoss(); else { bk.bossWon = false; bk.level++; best('breakoutLvl', bk.level); saveGames(); bkTrophies(); bkLoad(); bkLevels(); } } return; }
   bkStep();
   const sp = bkSpeed();
   for (const b of bk.balls) {
@@ -343,7 +346,7 @@ function bkUpdate() {
   if (bk.shake > 0) bk.shake--;
   if (!bk.balls.length) {
     bk.lives--; bk.shake = 10;
-    if (bk.lives <= 0) { bk.mode = 'over'; bk.overAt = Date.now(); const rec = best('breakout', bk.score); bk.record = rec; saveGames(); (rec ? BK_SFX.win : BK_SFX.over)(); return; }
+    if (bk.lives <= 0) { bk.mode = 'over'; bk.overAt = Date.now(); const rec = best('breakout', bk.score); bk.record = rec; saveGames(); bkTrophies(); (rec ? BK_SFX.win : BK_SFX.over)(); return; }
     BK_SFX.lose();
     bk.fx = {wide: 0, narrow: 0, laser: 0, slow: 0, glue: 0, fire: 0}; bk.drops = []; bk.lt = 0; bk.lastHit = 0;
     bk.balls = [{x: bk.px, y: BK.PY - 3, vx: 0, vy: 0, stuck: 0}];
@@ -429,6 +432,14 @@ $('bkFs').onclick = () => { $('bkFs').blur(); if (document.fullscreenElement) do
 const BK_SND = ['SON : TOUT', 'SON : EFFETS', 'SON : COUPÉ'];
 $('bkSnd').onclick = () => { bks.snd = ((bks.snd || 0) + 1) % 3; saveGames(); $('bkSnd').textContent = BK_SND[bks.snd]; $('bkSnd').blur(); };
 $('bkSnd').textContent = BK_SND[bks.snd || 0];
+// les trophées, tirés des records et des boss vaincus (aussi à l'ouverture : ce qui a été fait avant compte) ; jamais pendant la vérification
+function bkTrophies() {
+  if (bk?.mode === 'check') return;
+  const sc = games.best.breakout || 0, lv = games.best.breakoutLvl || 1, bo = bks.bosses || 0;
+  trophyRecord('score', games.best.breakout); trophyRecord('niveau', games.best.breakoutLvl);
+  if (lv >= 10) trophy('niveau-10'); if (lv >= 20) trophy('niveau-20'); if (lv > 40) trophy('niveau-41');
+  if (bo) trophy('boss'); if (bo >= 4) trophy('boss-4'); if (sc >= 10000) trophy('score-10000'); if (sc >= 50000) trophy('score-50000');
+}
 function bkCheck() {  // vérification : une brique simple casse en éclats, une brique à 3 coups se fissure, le métal tient, l'explosive emporte ses voisines
   const keep = bk, bad = [];
   bk = {mode: 'check', bricks: [], parts: [], drops: [], score: 0, level: 1, shake: 0, lt: 0};
@@ -461,5 +472,5 @@ console.assert(bkCheck() === 'ok', 'casse-briques', bkCheck());
 $('bkCanvas').__bk = {st: () => bk, BK, check: bkCheck, hit: k => bkHit(k), boss: bkBoss, load: bkLoad};  // pour l'auto-test
 $('bkLevel').onchange = () => bkStart(+$('bkLevel').value);  // (non indenté : les textes sur plusieurs lignes restent exactement les tiens)
   // ---- fin ----
-  ctx.onOpen(() => { bk ? gameLoop(bk, 'neodex:breakout', bkUpdate, bkDraw) : bkStart(); });
+  ctx.onOpen(() => { bk ? gameLoop(bk, 'neodex:breakout', bkUpdate, bkDraw) : bkStart(); bkTrophies(); });
 }
